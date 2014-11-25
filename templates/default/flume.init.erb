@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+#
+# elasticsearch
+#
+<% if node.platform_family?('debian') %>
+### BEGIN INIT INFO
+# Provides:          flume-agent
+# Required-Start:    $network $remote_fs $named
+# Required-Stop:     $network $remote_fs $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts flume agent
+# Description:       Starts flume agent using start-stop-daemon
+### END INIT INFO
+<% else %>
+# chkconfig:   - 57 47
+# description: flume
+# processname: flume
+# config:      <%= node[:flume][:path][:conf] %>/flume.conf
+<% end %>
+
+### BEGIN INIT INFO
+# Provides:          flume-agent
+# Required-Start:    $remote_fs
+# Should-Start:
+# Required-Stop:     $remote_fs
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Flume NG agent
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+if [ -f /etc/default/flume-agent ] ; then
+. /etc/default/flume-agent
+fi
+
+# Autodetect JAVA_HOME if not defined
+if [ -e /usr/libexec/bigtop-detect-javahome ]; then
+. /usr/libexec/bigtop-detect-javahome
+elif [ -e /usr/lib/bigtop-utils/bigtop-detect-javahome ]; then
+. /usr/lib/bigtop-utils/bigtop-detect-javahome
+fi
+
+STATUS_RUNNING=0
+STATUS_DEAD=1
+STATUS_DEAD_AND_LOCK=2
+STATUS_NOT_RUNNING=3
+
+ERROR_PROGRAM_NOT_INSTALLED=5
+
+FLUME_LOG_DIR=<%= node[:flume][:path][:logs] %>
+FLUME_CONF_DIR=<%= node[:flume][:path][:conf] %>
+FLUME_RUN_DIR=<%= node[:flume][:pid_path] %>
+FLUME_HOME=<%= node[:flume][:path][:dir] %>
+FLUME_USER=flume
+
+FLUME_LOCK_DIR="/var/lock/subsys"
+LOCKFILE="${FLUME_LOCK_DIR}/flume-agent"
+desc="Flume NG agent daemon"
+
+FLUME_CONF_FILE=${FLUME_CONF_FILE:-${FLUME_CONF_DIR}/flume.conf}
+EXEC_PATH=${FLUME_HOME}/bin/flume-ng
+FLUME_PID_PATH=<%= node[:flume][:pid_path] %>
+FLUME_PID_FILE=<%= node[:flume][:pid_file] %>
+
+# These directories may be tmpfs and may or may not exist
+# depending on the OS (ex: /var/lock/subsys does not exist on debian/ubuntu)
+for dir in "$FLUME_RUN_DIR" "$FLUME_LOCK_DIR" "FLUME_PID_PATH"; do
+[ -d "${dir}" ] || install -d -m 0755 -o $FLUME_USER -g $FLUME_USER ${dir}
+done
+
+DEFAULT_FLUME_NODE_NAME="agent"
+FLUME_NODE_NAME=${FLUME_NODE_NAME:-${DEFAULT_FLUME_NODE_NAME}}
+FLUME_SHUTDOWN_TIMEOUT=${FLUME_SHUTDOWN_TIMEOUT:-60}
+
+start() {
+  [ -x $exec ] || exit $ERROR_PROGRAM_NOT_INSTALLED
+
+  chown $FLUME_USER "$FLUME_PID_PATH"
+  checkstatus
+  status=$?
+  if [ "$status" -eq "$STATUS_RUNNING" ]; then
+  exit 0
+  fi
+
+  log_success_msg "Starting $desc (flume-agent): "
+  /bin/su -s /bin/bash -c "/bin/bash -c 'echo \$\$ > ${FLUME_PID_FILE} && exec ${EXEC_PATH} agent --conf $FLUME_CONF_DIR --conf-file $FLUME_CONF_FILE --name $FLUME_NODE_NAME >>${FLUME_LOG_DIR}/flume-agent.log  2>&1' &" $FLUME_USER
+  RETVAL=$?
+  [ $RETVAL -eq 0 ] && touch $LOCKFILE
+  return $RETVAL
+}
+
+stop() {
+  if [ ! -e $FLUME_PID_FILE ]; then
+  log_failure_msg "Flume agent is not running"
+  exit 0
+  fi
+
+  log_success_msg "Stopping $desc (flume-agent): "
+
+  FLUME_PID=`cat $FLUME_PID_FILE`
+  if [ -n $FLUME_PID ]; then
+  kill -TERM ${FLUME_PID} &>/dev/null
+  for i in `seq 1 ${FLUME_SHUTDOWN_TIMEOUT}` ; do
+  kill -0 ${FLUME_PID} &>/dev/null || break
+  sleep 1
+  done
+  kill -KILL ${FLUME_PID} &>/dev/null
+  fi
+  rm -f $LOCKFILE $FLUME_PID_FILE
+  return 0
+}
+
+restart() {
+  stop
+  start
+}
+
+checkstatus(){
+  pidofproc -p $FLUME_PID_FILE java > /dev/null
+  status=$?
+
+  case "$status" in
+  $STATUS_RUNNING)
+  log_success_msg "Flume NG agent is running"
+  ;;
+  $STATUS_DEAD)
+  log_failure_msg "Flume NG agent is dead and pid file exists"
+  ;;
+  $STATUS_DEAD_AND_LOCK)
+  log_failure_msg "Flume NG agent is dead and lock file exists"
+  ;;
+  $STATUS_NOT_RUNNING)
+  log_failure_msg "Flume NG agent is not running"
+  ;;
+  *)
+  log_failure_msg "Flume NG agent status is unknown"
+  ;;
+  esac
+  return $status
+}
+
+condrestart(){
+  [ -e ${LOCKFILE} ] && restart || :
+}
+
+case "$1" in
+start)
+start
+;;
+stop)
+stop
+;;
+status)
+checkstatus
+;;
+restart)
+restart
+;;
+condrestart|try-restart)
+condrestart
+;;
+*)
+echo $"Usage: $0 {start|stop|status|restart|try-restart|condrestart}"
+exit 1
+esac
+
+exit $RETVAL
