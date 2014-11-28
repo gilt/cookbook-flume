@@ -37,6 +37,7 @@ default.flume[:pid_file]  = "#{node.flume[:pid_path]}/flume.pid"
 
 default.flume[:templates][:flume_conf]  = "flume.conf.erb"
 default.flume[:templates][:log4j_properties] = "log4j.properties.erb"
+default.flume[:templates][:flume_env] = "flume-env.sh.erb"
 
 # === MEMORY
 #
@@ -45,16 +46,9 @@ default.flume[:templates][:log4j_properties] = "log4j.properties.erb"
 #
 allocated_memory = "#{(node.memory.total.to_i * 0.8 ).floor / 1024}m"
 default.flume[:allocated_memory] = allocated_memory
-
-# === GARBAGE COLLECTION SETTINGS
-#
-default.flume[:gc_settings] =<<-CONFIG
--XX:+UseParNewGC
--XX:+UseConcMarkSweepGC
--XX:CMSInitiatingOccupancyFraction=75
--XX:+UseCMSInitiatingOccupancyOnly
--XX:+HeapDumpOnOutOfMemoryError
-CONFIG
+default.flume[:env] = [
+  "JAVA_OPTS='-Xmx#{allocated_memory} -Xms#{allocated_memory} -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=75 -XX:+UseCMSInitiatingOccupancyOnly -XX:+HeapDumpOnOutOfMemoryError'"
+]
 
 default.flume[:agent_config] = [
   "# Licensed to the Apache Software Foundation (ASF) under one",

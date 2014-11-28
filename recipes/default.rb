@@ -122,11 +122,19 @@ template "flume.conf" do
   notifies :restart, 'service[flume]' unless node.flume[:skip_restart]
 end
 
-# Create ES logging file
+# Create logging file
 #
-template "logging.yml" do
+template "log4j.properties" do
   path   "#{node.flume[:path][:conf]}/log4j.properties"
   source node.flume[:templates][:log4j_properties]
+  owner  node.flume[:user] and group node.flume[:user] and mode 0755
+
+  notifies :restart, 'service[flume]' unless node.flume[:skip_restart]
+end
+
+template "flume-env.sh" do
+  path "#{node.flume[:path][:conf]}/flume-env.sh"
+  source node.flume[:templates][:flume_env]
   owner  node.flume[:user] and group node.flume[:user] and mode 0755
 
   notifies :restart, 'service[flume]' unless node.flume[:skip_restart]
