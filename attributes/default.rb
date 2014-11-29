@@ -47,7 +47,7 @@ default.flume[:templates][:flume_env] = "flume-env.sh.erb"
 allocated_memory = "#{(node.memory.total.to_i * 0.8 ).floor / 1024}m"
 default.flume[:allocated_memory] = allocated_memory
 default.flume[:env] = [
-  "JAVA_OPTS='-Xmx#{allocated_memory} -Xms#{allocated_memory} -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=75 -XX:+UseCMSInitiatingOccupancyOnly -XX:+HeapDumpOnOutOfMemoryError'"
+  %Q[JAVA_OPTS=" -Xmx#{allocated_memory} -Xms#{allocated_memory} -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+HeapDumpOnOutOfMemoryError "]
 ]
 
 default.flume[:agent_config] = [

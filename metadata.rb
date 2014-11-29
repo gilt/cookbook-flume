@@ -16,3 +16,4 @@ recommends 'monit'
 
 provides 'flume'
 provides 'flume::elasticsearch'
+provides 'flume::newrelic'
